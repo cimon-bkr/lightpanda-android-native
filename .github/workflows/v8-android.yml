@@ -1,0 +1,82 @@
+name: V8 for Android
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  ZIG_V8_COMMIT: ad0afb5728ce8f507c77ab27701dcb056e12c48a   # the commit Lightpanda 1.0.3 pins
+  CACHE: /mnt/lp-cache
+
+jobs:
+  v8:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make room (V8 and its Android toolchain are large)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" /usr/local/lib/android
+          sudo mkdir -p "$CACHE" && sudo chown "$USER" "$CACHE"
+          df -h / /mnt
+
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.17.0
+
+      - name: Zig zip-fetch workaround
+        run: mkdir -p "${ZIG_GLOBAL_CACHE_DIR:-$HOME/.cache/zig}/tmp"
+
+      - name: Get and patch zig-v8-fork
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl xz-utils python3 ca-certificates pkg-config libglib2.0-dev clang
+          git clone https://github.com/lightpanda-io/zig-v8-fork.git zig-v8
+          git -C zig-v8 checkout "$ZIG_V8_COMMIT"
+          python3 patches/patch_zig_v8.py zig-v8/build.zig
+          git -C zig-v8 diff --stat
+
+      - name: Fetch V8 source and the Android toolchain
+        working-directory: zig-v8
+        env:
+          DEPOT_TOOLS_UPDATE: "0"
+          DEPOT_TOOLS_METRICS: "0"
+        run: |
+          set -o pipefail
+          zig build 2>&1 | tee -a "$RUNNER_TEMP/log.txt"
+          zig build prepare-v8 -Dtarget=aarch64-linux-android -Dcache_root="$CACHE" 2>&1 | tee -a "$RUNNER_TEMP/log.txt"
+          df -h /mnt
+
+      - name: Build V8 for Android (arm64)
+        working-directory: zig-v8
+        env:
+          DEPOT_TOOLS_UPDATE: "0"
+          DEPOT_TOOLS_METRICS: "0"
+        run: |
+          set -o pipefail
+          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-linux-android -Dcache_root="$CACHE" build-v8 2>&1 | tee -a "$RUNNER_TEMP/log.txt"
+
+      - name: Collect the archive
+        run: |
+          f=$(find "$CACHE" -name libc_v8.a -path '*obj/zig*' | head -1)
+          echo "archive: $f"
+          ls -l "$f"
+          cp "$f" libc_v8_android_arm64.a
+          file libc_v8_android_arm64.a || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libc_v8_android_arm64
+          path: libc_v8_android_arm64.a
+          compression-level: 6
+
+      - name: Show the end of the log if something failed
+        if: failure()
+        run: |
+          msg=$(tail -n 40 "$RUNNER_TEMP/log.txt" 2>/dev/null | sed ':a;N;$!ba;s/\n/%0A/g' | cut -c1-6000)
+          echo "::error title=End of the build log::$msg"
