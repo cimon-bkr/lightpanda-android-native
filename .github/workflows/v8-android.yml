@@ -38,8 +38,8 @@ jobs:
           sudo apt-get install -y git curl xz-utils python3 ca-certificates pkg-config libglib2.0-dev clang
           git clone https://github.com/lightpanda-io/zig-v8-fork.git zig-v8
           git -C zig-v8 checkout "$ZIG_V8_COMMIT"
-          python3 patches/patch_zig_v8.py zig-v8/build.zig
-          git -C zig-v8 diff --stat
+          python3 patches/patch_zig_v8.py zig-v8/build.zig zig-v8/build-tools/.gn
+          git -C zig-v8 diff
 
       - name: Fetch V8 source and the Android toolchain
         working-directory: zig-v8
