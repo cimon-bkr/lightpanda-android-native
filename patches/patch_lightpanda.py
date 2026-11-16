@@ -45,6 +45,10 @@ fn translateC(b: *Build, mod: *Build.Module, header: Build.LazyPath) Translator 
             translator.run.addArgs(&.{
                 "-isystem", b.fmt("{s}/usr/include/aarch64-linux-android", .{sysroot}),
                 "-isystem", b.fmt("{s}/usr/include", .{sysroot}),
+                // Bionic's headers refuse an unversioned target and pull in fortify wrappers that
+                // translate-c cannot parse.
+                "-D__ANDROID_API__=29",
+                "-D_FORTIFY_SOURCE=0",
             });
         }
     }
