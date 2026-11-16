@@ -45,7 +45,7 @@ jobs:
           crt_dir=$TOOLS/sysroot/usr/lib/aarch64-linux-android/29
           msvc_lib_dir=
           kernel32_lib_dir=
-          gcc_dir=
+          cc_dir=$TOOLS/sysroot/usr/lib/aarch64-linux-android/29
           darwin_sdk_dir=
           LIBC
           sed -i 's/^ *//' "$RUNNER_TEMP/libc.txt"
