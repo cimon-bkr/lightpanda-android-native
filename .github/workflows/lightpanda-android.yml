@@ -46,6 +46,7 @@ jobs:
           msvc_lib_dir=
           kernel32_lib_dir=
           gcc_dir=
+          darwin_sdk_dir=
           LIBC
           sed -i 's/^ *//' "$RUNNER_TEMP/libc.txt"
           cat "$RUNNER_TEMP/libc.txt"
