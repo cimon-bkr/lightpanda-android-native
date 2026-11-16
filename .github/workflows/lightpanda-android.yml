@@ -72,16 +72,23 @@ jobs:
           "$TOOLS/bin/llvm-ar" rcs libc_v8.a d.o
           cd "$GITHUB_WORKSPACE/lp"
           python3 "$GITHUB_WORKSPACE/patches/patch_lightpanda.py" build.zig
+          zig fmt build.zig
           zig build --libc "$RUNNER_TEMP/libc.txt" -Dtarget=aarch64-linux-android -Doptimize=ReleaseSafe \
             -Dprebuilt_v8_path="$RUNNER_TEMP/libc_v8.a" -Dprebuilt_rust_path="$RUST_A" -Dandroid_sysroot="$TOOLS/sysroot" 2>&1 | tee -a "$RUNNER_TEMP/log.txt"
 
-      - name: Show the end of the log if something failed
+      - name: Show the useful parts of the log if something failed
         if: failure()
         run: |
-          {
-            grep -n -m 25 -E "error|Error|undefined|not found|unable" "$RUNNER_TEMP/log.txt" | cut -c1-300
-            echo "-----"
-            tail -n 25 "$RUNNER_TEMP/log.txt" | cut -c1-300
-          } > "$RUNNER_TEMP/summary.txt" 2>/dev/null || true
-          msg=$(sed ':a;N;$!ba;s/\n/%0A/g' "$RUNNER_TEMP/summary.txt" | cut -c1-6000)
-          echo "::error title=Build log (errors, then end)::$msg"
+          log="$RUNNER_TEMP/log.txt"
+          # 1) the failing commands, shortened
+          grep -n "failed command" "$log" | cut -c1-900 | head -6 > "$RUNNER_TEMP/a.txt" || true
+          msg=$(sed ':a;N;$!ba;s/\n/%0A/g' "$RUNNER_TEMP/a.txt" | cut -c1-7000)
+          echo "::error title=Failing commands::$msg"
+          # 2) distinct error lines
+          grep -E "error:|error\(" "$log" | sed 's#/usr/local/lib/android/sdk/ndk/[^/]*/toolchains/llvm/prebuilt/linux-x86_64/sysroot#NDK#' | cut -c1-260 | awk '!seen[$0]++' | head -25 > "$RUNNER_TEMP/b.txt" || true
+          msg=$(sed ':a;N;$!ba;s/\n/%0A/g' "$RUNNER_TEMP/b.txt" | cut -c1-7000)
+          echo "::error title=Distinct errors::$msg"
+          # 3) which build steps failed
+          grep -E "^\+- |failure" "$log" | cut -c1-200 | head -20 > "$RUNNER_TEMP/c.txt" || true
+          msg=$(sed ':a;N;$!ba;s/\n/%0A/g' "$RUNNER_TEMP/c.txt" | cut -c1-5000)
+          echo "::error title=Failed steps::$msg"
