@@ -71,8 +71,9 @@ jobs:
           "$TOOLS/bin/aarch64-linux-android29-clang" -c d.c -o d.o
           "$TOOLS/bin/llvm-ar" rcs libc_v8.a d.o
           cd "$GITHUB_WORKSPACE/lp"
+          python3 "$GITHUB_WORKSPACE/patches/patch_lightpanda.py" build.zig
           zig build --libc "$RUNNER_TEMP/libc.txt" -Dtarget=aarch64-linux-android -Doptimize=ReleaseSafe \
-            -Dprebuilt_v8_path="$RUNNER_TEMP/libc_v8.a" -Dprebuilt_rust_path="$RUST_A" 2>&1 | tee -a "$RUNNER_TEMP/log.txt"
+            -Dprebuilt_v8_path="$RUNNER_TEMP/libc_v8.a" -Dprebuilt_rust_path="$RUST_A" -Dandroid_sysroot="$TOOLS/sysroot" 2>&1 | tee -a "$RUNNER_TEMP/log.txt"
 
       - name: Show the end of the log if something failed
         if: failure()
